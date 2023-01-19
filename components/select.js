@@ -52,7 +52,7 @@ export const Select = ({ showModal, setShowModal, tokenNum, setToken1, setToken2
                     <ul className="">
                         {lists.map((Option) => {
                             return (
-                                <div>
+                                <div key={Option.id}>
                                     <li
                                         className=" p-3 hover:bg-slate-500 flex justify-right text-white text-xl font-semibold"
                                         onClick={() => {
