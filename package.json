@@ -16,8 +16,7 @@
     "@web3uikit/core": "^0.2.38",
     "@web3uikit/icons": "^0.2.23",
     "@web3uikit/web3": "^0.2.2",
-    "eslint": "8.28.0",
-    "eslint-config-next": "13.0.6",
+    
     "ethers": "^5.7.2",
     "isomorphic-fetch": "^3.0.0",
     "jsbi": "3.2.5",
