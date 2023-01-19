@@ -158,7 +158,7 @@ export default function PriceFunctions() {
     }, [active])
 
     return (
-        <div class=" bg-slate-400 h-screen flex flex-col items-center py-6">
+        <div class=" bg-slate-400 h-full flex flex-col items-center py-6">
             <ThePage
                 setSlippagePercent={setSlippage}
                 setToken1={setToken1}
