@@ -48,7 +48,7 @@ const handleNotification = (type, tx, dispatch, message) => {
     if (tx == "enableWeb3") {
         dispatch({
             type: "error",
-            message: "Not connected",
+            message: "Please! Connect to a wallet",
             title: "Not Connected",
             position: "topR",
         })
@@ -85,12 +85,16 @@ export async function swapWithUniswap(
     slippage,
     swapType,
     isWeb3Enabled,
+    web3Provider,
     setUniSwapTxLoading,
     setUniSwapTxLoadingText
 ) {
     setUniSwapTxLoading(true)
     try {
-        const web3Provider = new ethers.providers.Web3Provider(window.ethereum)
+        if (isWeb3Enabled == false) {
+            handleNotification("error", "enableWeb3", dispatch)
+            throw "Not connected to a wallet"
+        }
         const signer = web3Provider.getSigner()
         const receipient = await signer.getAddress()
         const deadline = Math.floor(Date.now() / 1000 + 1800)
@@ -98,10 +102,7 @@ export async function swapWithUniswap(
         const Address = "0xE592427A0AEce92De3Edee1F18E0157C05861564"
         const ABI = uniSwapABI[Address]
         const Contract = new ethers.Contract(Address, ABI, web3Provider)
-        if (isWeb3Enabled == false) {
-            handleNotification("error", "enableWeb3", dispatch)
-            throw "Not connected"
-        }
+
         const inputTokenContract = new ethers.Contract(tokenInputAddress, ERC20ABI, web3Provider)
         const outputTokenContract = new ethers.Contract(tokenOutputAddress, ERC20ABI, web3Provider)
         const inputAmount1 = await inputTokenContract.balanceOf(receipient)
@@ -223,13 +224,18 @@ export const swapWithCurve = async (
     tokenOutputAddress,
     swapType,
     isWeb3Enabled,
+    slippage,
+    web3Provider,
     dispatch,
     setCurveTxLoading,
     setCurveTxLoadingText
 ) => {
     setCurveTxLoading(true)
     try {
-        const web3Provider = new ethers.providers.Web3Provider(window.ethereum)
+        if (isWeb3Enabled == false) {
+            handleNotification("error", "enableWeb3", dispatch)
+            throw "Not connected to a wallet"
+        }
         const signer = web3Provider.getSigner()
         const receipient = await signer.getAddress()
 
@@ -239,18 +245,15 @@ export const swapWithCurve = async (
 
         const input = Number(inputAmount).toFixed(6)
         const Amount1 = ethers.utils.parseUnits(input.toString(), inputDecimal)
-        console.log(Amount1.toString())
 
         const output = Number(amountOut).toFixed(6)
         const AmountOut = ethers.utils.parseUnits(output.toString(), outputDecimal)
-        if (isWeb3Enabled == false) {
-            handleNotification("error", "enableWeb3", dispatch)
-            throw "Not connected"
-        }
 
         const percentageSlippage = BigNumber.from(5)
-        const expectedOutput = AmountOut.sub(percentageSlippage.mul(AmountOut.div(100)))
-        console.log(expectedOutput.toString())
+        console.log(`expected Output = ${slippage.toString()}`)
+        const expectedOutput = AmountOut.mul(BigNumber.from(100).sub(slippage)).div(100)
+        // const expectedOutput = AmountOut.sub(percentageSlippage.mul(AmountOut.div(100)))
+        console.log(`expected Output = ${AmountOut.toString()}`)
         if (swapType == 2) {
             dispatch({
                 type: "error",
@@ -287,7 +290,7 @@ export const swapWithCurve = async (
                 0,
                 {
                     gasLimit: 30000000,
-                    gasPrice: 11471623582,
+                    gasPrice: 47189990884,
                 }
             )
             setCurveTxLoadingText("processing...")
@@ -317,13 +320,17 @@ export const swapWithSushi = async (
     swapType,
     slippage,
     isWeb3Enabled,
+    web3Provider,
     dispatch,
     setSushiTxLoading,
     setSushiTxLoadingText
 ) => {
     setSushiTxLoading(true)
     try {
-        const web3Provider = new ethers.providers.Web3Provider(window.ethereum)
+        if (isWeb3Enabled == false) {
+            handleNotification("error", "enableWeb3", dispatch)
+            throw "Not connected to a wallet"
+        }
         const signer = web3Provider.getSigner()
 
         const Address = "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"
@@ -331,11 +338,6 @@ export const swapWithSushi = async (
         const Contract = new ethers.Contract(Address, ABI, web3Provider)
         const receipient = await signer.getAddress()
         const deadline = Math.floor(Date.now() / 1000 + 1800)
-
-        if (isWeb3Enabled == false) {
-            handleNotification("error", "enableWeb3", dispatch)
-            throw "Not connected"
-        }
 
         const inputTokenContract = new ethers.Contract(tokenInputAddress, ERC20ABI, web3Provider)
         const outputTokenContract = new ethers.Contract(tokenOutputAddress, ERC20ABI, web3Provider)
@@ -367,7 +369,7 @@ export const swapWithSushi = async (
                         deadline,
                         {
                             value: givenAmount,
-                            gasPrice: 22817899975,
+                            gasPrice: 91710994765,
                             gasLimit: 500000,
                         }
                     )
@@ -533,13 +535,17 @@ export const swapWithBalancer = async (
     swapType,
     slippage,
     isWeb3Enabled,
+    web3Provider,
     dispatch,
     setBalancerTxLoading,
     setBalancerTxLoadingText
 ) => {
     setBalancerTxLoading(true)
     try {
-        const web3Provider = new ethers.providers.Web3Provider(window.ethereum)
+        if (isWeb3Enabled == false) {
+            handleNotification("error", "enableWeb3", dispatch)
+            throw "Not connected to a wallet"
+        }
         const signer = web3Provider.getSigner()
         const swapper = await signer.getAddress()
         const fund_struct = {
@@ -553,11 +559,6 @@ export const swapWithBalancer = async (
         const vaultContract = new ethers.Contract(vaultAddress, vaultABI, web3Provider)
         const limits = [...tokenLimits]
         const indexOfReturnedValue = limits.findIndex((limit) => limit < 0)
-
-        if (isWeb3Enabled == false) {
-            handleNotification("error", "enableWeb3", dispatch)
-            throw "Not connected"
-        }
 
         const inputTokenContract = new ethers.Contract(checksum_tokens[0], ERC20ABI, web3Provider)
         const outputTokenContract = new ethers.Contract(

@@ -5,6 +5,8 @@ import { ConnectButton } from "@web3uikit/web3"
 import PriceFunctions from "../components/priceFunction"
 import { SetSlippage } from "../components/setSlippage"
 import { useState } from "react"
+import { Select } from "../components/select"
+import { ThePage } from "../components/thePage"
 
 export default function Home() {
     const [slippage, setSlippage] = useState(5)
@@ -15,15 +17,14 @@ export default function Home() {
                 <meta name="description" content="Swap token on the cheapest platform" />
                 <link rel="icon" href="/favicon.ico" />
             </Head>
-            <div class="flex border-b-2 border-indigo-600 rounded-lg p-5 justify-between">
-                <h1 class="text-3xl font-bold ">MY DAPP</h1>
-                <div class="flex items-center">
-                    <ConnectButton />
-                    <SetSlippage setSlippagePercent={setSlippage} />
-                </div>
+            <div class="flex border-b-2 border-indigo-600 rounded-lg p-3 justify-between bg-gray-200">
+                <h1 class="text-xl font-bold self-center">Swap Dapp</h1>
+
+                <ConnectButton />
             </div>
             <div>
-                <PriceFunctions slippage={slippage} />
+                <PriceFunctions />
+                {/* <Select /> */}
             </div>
         </div>
     )
