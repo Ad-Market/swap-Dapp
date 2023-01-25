@@ -1,68 +1,71 @@
+import CurveABI from "../constants/curveABIs.json"
 import uniSwapABI from "../constants/uniSwapABI.json"
-
+import SushiSwapABI from "../constants/sushiABIs.json"
 import { ethers } from "ethers"
 import { SOR, SwapTypes } from "@balancer-labs/sor"
 import { SubgraphPoolDataService } from "./subgraphDataProvider"
 import { CoingeckoTokenPriceService } from "./coingeckoTokenPriceService"
 import vaultABI from "../constants/balancerABI.json"
 
-// export const getCurvePrice = async (
-//     web3Provider,
-//     input,
-//     output,
-//     tokenInputAddress,
-//     tokenOutputAddress,
-//     outputDecimal,
-//     inputDecimal,
-//     swapType,
-//     setCurevSwapFunc,
-//     setInputUsed
-// ) => {
-//     setCurevSwapFunc("wait..")
+export const getCurvePrice = async (
+    web3Provider,
+    input,
+    output,
+    tokenInputAddress,
+    tokenOutputAddress,
+    outputDecimal,
+    inputDecimal,
+    swapType,
+    setCurevSwapFunc,
+    setInputUsed
+) => {
+    setCurevSwapFunc("wait..")
 
-//     const Address = "0x99a58482BD75cbab83b27EC03CA68fF489b5788f"
-//     const ABI = CurveABI["Vyper"]
-//     const Contract = new ethers.Contract(Address, ABI, web3Provider)
-//     let Amount
-//     try {
-//         if (swapType == 1) {
-//             input == 0 || input == undefined
-//                 ? (Amount = ethers.utils.parseUnits("1", inputDecimal))
-//                 : (Amount = ethers.utils.parseUnits(input.toString(), inputDecimal))
+    const Address = "0x99a58482BD75cbab83b27EC03CA68fF489b5788f"
+    const ABI = CurveABI["Vyper"]
+    const Contract = new ethers.Contract(Address, ABI, web3Provider)
+    let Amount
+    try {
+        if (swapType == 1) {
+            input == 0 || input == undefined
+                ? (Amount = ethers.utils.parseUnits("1", inputDecimal))
+                : (Amount = ethers.utils.parseUnits(input.toString(), inputDecimal))
 
-//             const result = await Contract.get_best_rate(
-//                 tokenInputAddress,
-//                 tokenOutputAddress,
-//                 Amount
-//             )
-//             const price = ethers.utils.formatUnits(result[1].toString(), outputDecimal)
-//             setCurevSwapFunc(price.toString())
-//             input == undefined || input == "" ? setInputUsed("1") : setInputUsed(input)
-//         } else if (swapType == 2) {
-//             output == 0 || output == undefined
-//                 ? (Amount = ethers.utils.parseUnits("1", outputDecimal))
-//                 : (Amount = ethers.utils.parseUnits(output.toString(), outputDecimal))
-//             const result = await Contract.get_best_rate(
-//                 tokenOutputAddress,
-//                 tokenInputAddress,
-//                 Amount
-//             )
-//             const price = ethers.utils.formatUnits(result[1].toString(), inputDecimal)
-//             setCurevSwapFunc(price.toString())
-//             output == undefined || output == "" ? setInputUsed("1") : setInputUsed(output)
-//         }
-//     } catch (e) {
-//         console.log(e)
-//         setCurevSwapFunc("0.00")
-//         swapType == 2
-//             ? output == undefined || output == ""
-//                 ? setInputUsed("1")
-//                 : setInputUsed(output)
-//             : input == undefined || input == ""
-//             ? setInputUsed("1")
-//             : setInputUsed(input)
-//     }
-// }
+            const result = await Contract.get_best_rate(
+                tokenInputAddress,
+                tokenOutputAddress,
+                Amount
+            )
+            const price = ethers.utils.formatUnits(result[1].toString(), outputDecimal)
+            setCurevSwapFunc(price.toString())
+            input == undefined || input == "" ? setInputUsed("1") : setInputUsed(input)
+        } else if (swapType == 2) {
+            output == 0 || output == undefined
+                ? (Amount = ethers.utils.parseUnits("1", outputDecimal))
+                : (Amount = ethers.utils.parseUnits(output.toString(), outputDecimal))
+            const result = await Contract.get_best_rate(
+                tokenOutputAddress,
+                tokenInputAddress,
+                Amount
+            )
+            const price = ethers.utils.formatUnits(result[1].toString(), inputDecimal)
+            setCurevSwapFunc(price.toString())
+            output == undefined || output == "" ? setInputUsed("1") : setInputUsed(output)
+        }
+    } catch (e) {
+        console.log(e)
+        setCurevSwapFunc("0.00")
+        if (!e.message.toLowerCase().includes("Cannot read properties of null".toLowerCase())) {
+            swapType == 2
+                ? output == undefined || output == ""
+                    ? setInputUsed("1")
+                    : setInputUsed(output)
+                : input == undefined || input == ""
+                ? setInputUsed("1")
+                : setInputUsed(input)
+        }
+    }
+}
 
 export const getUniswapPrice = async (
     web3Provider,
@@ -115,14 +118,72 @@ export const getUniswapPrice = async (
         }
     } catch (error) {
         setUniSwapFunc("0.0")
-        swapType == 2
-            ? output == undefined || output == ""
+        console.log(`UNI Error ${error}`)
+        if (!error.message.toLowerCase().includes("Cannot read properties of null".toLowerCase())) {
+            swapType == 2
+                ? output == undefined || output == ""
+                    ? setInputUsed("1")
+                    : setInputUsed(output)
+                : input == undefined || input == ""
                 ? setInputUsed("1")
-                : setInputUsed(output)
-            : input == undefined || input == ""
-            ? setInputUsed("1")
-            : setInputUsed(input)
-        console.log(error)
+                : setInputUsed(input)
+        }
+    }
+}
+
+export const getSushiSwapPrice = async (
+    web3Provider,
+    input,
+    output,
+    tokenInputAddress,
+    tokenOutputAddress,
+    outputDecimal,
+    inputDecimal,
+    swapType,
+    setSushiSwapPriceFunc,
+    setInputUsed
+) => {
+    setSushiSwapPriceFunc("wait..")
+    try {
+        const routerAddress = "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"
+        const routerABI = SushiSwapABI[routerAddress]
+        const routerContract = new ethers.Contract(routerAddress, routerABI, web3Provider)
+        let Amount
+        if (swapType == 1) {
+            input == 0 || input == undefined
+                ? (Amount = ethers.utils.parseUnits("1", inputDecimal))
+                : (Amount = ethers.utils.parseUnits(input.toString(), inputDecimal))
+            const result = await routerContract.getAmountsOut(Amount, [
+                tokenInputAddress,
+                tokenOutputAddress,
+            ])
+            const price = ethers.utils.formatUnits(result[1].toString(), outputDecimal)
+            setSushiSwapPriceFunc(price)
+            input == undefined || input == "" ? setInputUsed("1") : setInputUsed(input)
+        } else if (swapType == 2) {
+            output == 0 || output == undefined
+                ? (Amount = ethers.utils.parseUnits("1", outputDecimal))
+                : (Amount = ethers.utils.parseUnits(output.toString(), outputDecimal))
+            const result = await routerContract.getAmountsIn(Amount, [
+                tokenInputAddress,
+                tokenOutputAddress,
+            ])
+            const price = ethers.utils.formatUnits(result[0].toString(), inputDecimal)
+            setSushiSwapPriceFunc(price)
+            output == undefined || output == "" ? setInputUsed("1") : setInputUsed(output)
+        }
+    } catch (error) {
+        setSushiSwapPriceFunc("0.0")
+        console.log(`sushi Error ${error.message}`)
+        if (!error.message.toLowerCase().includes("Cannot read properties of null".toLowerCase())) {
+            swapType == 2
+                ? output == undefined || output == ""
+                    ? setInputUsed("1")
+                    : setInputUsed(output)
+                : input == undefined || input == ""
+                ? setInputUsed("1")
+                : setInputUsed(input)
+        }
     }
 }
 

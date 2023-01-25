@@ -1,12 +1,7 @@
 import Head from "next/head"
-import Image from "next/image"
-import styles from "../styles/Home.module.css"
 import { ConnectButton } from "@web3uikit/web3"
 import PriceFunctions from "../components/priceFunction"
-import { SetSlippage } from "../components/setSlippage"
 import { useState } from "react"
-import { Select } from "../components/select"
-import { ThePage } from "../components/thePage"
 
 export default function Home() {
     const [slippage, setSlippage] = useState(5)

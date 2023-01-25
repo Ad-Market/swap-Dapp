@@ -1,19 +1,42 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Options from "../Utils/listOfTokenAddresses"
 import { BiSearchAlt2 } from "react-icons/bi"
+import { tokenLists } from "../prisma/listOfTokens"
+import { useQuery } from "@apollo/client"
+import { GET_TOKENS } from "./graphqlQueries"
 
-export const Select = ({ showModal, setShowModal, tokenNum, setToken1, setToken2 }) => {
-    const [lists, setLists] = useState(Options())
-    const [selected, setSelected] = useState()
+export const Select = ({
+    showModal,
+    setShowModal,
+    tokenNum,
+    setToken1,
+    setToken2,
+    setTokenInputAddress,
+    setTokenOutputAddress,
+    setInputDecimal,
+    setOutputDecimal,
+}) => {
+    const { loading, data, error } = useQuery(GET_TOKENS)
+    const [completeList, setCompleteList] = useState(tokenLists)
+    const [lists, setLists] = useState(completeList)
 
-    if (showModal == false) {
-        return null
+    const setTokenList = () => {
+        if (!loading && !error) {
+            setCompleteList(data.token)
+        } else {
+            setCompleteList(tokenLists)
+        }
     }
+
+    useEffect(() => {
+        setTokenList()
+    }, [data])
+
     const getList = (search) => {
-        const ListofOptions = Options()
+        const ListofOptions = completeList
         const listArray = []
         ListofOptions.forEach((option) => {
-            if (option.label.toLowerCase().includes(search.toLowerCase())) {
+            if (option.symbol.toLowerCase().includes(search.toLowerCase())) {
                 listArray.push(option)
             }
         })
@@ -24,7 +47,12 @@ export const Select = ({ showModal, setShowModal, tokenNum, setToken1, setToken2
     const handle = (e) => {
         if (e.target.id === "wrapper") {
             setShowModal(false)
+            setTokenList()
         }
+    }
+
+    if (showModal == false) {
+        return null
     }
 
     return (
@@ -52,19 +80,24 @@ export const Select = ({ showModal, setShowModal, tokenNum, setToken1, setToken2
                     <ul className="">
                         {lists.map((Option) => {
                             return (
-                                <div key={Option.id}>
+                                <div key={lists.indexOf(Option)}>
                                     <li
                                         className=" p-3 hover:bg-slate-500 flex justify-right text-white text-xl font-semibold"
                                         onClick={() => {
                                             if (tokenNum == 2) {
-                                                setToken2(Option.id)
+                                                setToken2(Option.symbol)
+                                                setTokenOutputAddress(Option.address)
+                                                setOutputDecimal(Option.decimals)
                                             } else if (tokenNum == 1) {
-                                                setToken1(Option.id)
+                                                setToken1(Option.symbol)
+                                                setTokenInputAddress(Option.address)
+                                                setInputDecimal(Option.decimals)
                                             }
                                             setShowModal(false)
+                                            setTokenList()
                                         }}
                                     >
-                                        <div>{Option.label}</div>
+                                        <div>{Option.symbol}</div>
                                     </li>
                                 </div>
                             )
