@@ -19,7 +19,7 @@ export const ThePage = ({
     const [swapState, setSwapState] = useState(false)
 
     useEffect(() => {
-        if (Number(bestRate) > 0) {
+        if (Number(bestRate) > 0 || Number(bestRate) == Infinity) {
             setSwapState(false)
         } else {
             setSwapState(true)

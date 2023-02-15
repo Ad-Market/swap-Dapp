@@ -3,10 +3,12 @@ import uniSwapABI from "../constants/uniSwapABI.json"
 import SushiSwapABI from "../constants/sushiABIs.json"
 import { ethers } from "ethers"
 import { SOR, SwapTypes } from "@balancer-labs/sor"
-import { SubgraphPoolDataService } from "./subgraphDataProvider"
+import { getQuery, SubgraphPoolDataService } from "./subgraphDataProvider"
 import { CoingeckoTokenPriceService } from "./coingeckoTokenPriceService"
 import vaultABI from "../constants/balancerABI.json"
 
+const ethAddress = "0x0000000000000000000000000000000000000123"
+const wethAddress = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
 export const getCurvePrice = async (
     web3Provider,
     input,
@@ -17,14 +19,23 @@ export const getCurvePrice = async (
     inputDecimal,
     swapType,
     setCurevSwapFunc,
-    setInputUsed
+    setInputUsed,
+    setCurveTokenInputUsed,
+    setCurveTokenOutputUsed
 ) => {
     setCurevSwapFunc("wait..")
-
     const Address = "0x99a58482BD75cbab83b27EC03CA68fF489b5788f"
     const ABI = CurveABI["Vyper"]
+    const In = tokenInputAddress
+    const Out = tokenOutputAddress
     const Contract = new ethers.Contract(Address, ABI, web3Provider)
     let Amount
+    tokenInputAddress == ethAddress
+        ? (tokenInputAddress = wethAddress)
+        : (tokenInputAddress = tokenInputAddress)
+    tokenOutputAddress == ethAddress
+        ? (tokenOutputAddress = wethAddress)
+        : (tokenOutputAddress = tokenOutputAddress)
     try {
         if (swapType == 1) {
             input == 0 || input == undefined
@@ -39,6 +50,8 @@ export const getCurvePrice = async (
             const price = ethers.utils.formatUnits(result[1].toString(), outputDecimal)
             setCurevSwapFunc(price.toString())
             input == undefined || input == "" ? setInputUsed("1") : setInputUsed(input)
+            setCurveTokenInputUsed(In)
+            setCurveTokenOutputUsed(Out)
         } else if (swapType == 2) {
             output == 0 || output == undefined
                 ? (Amount = ethers.utils.parseUnits("1", outputDecimal))
@@ -51,11 +64,15 @@ export const getCurvePrice = async (
             const price = ethers.utils.formatUnits(result[1].toString(), inputDecimal)
             setCurevSwapFunc(price.toString())
             output == undefined || output == "" ? setInputUsed("1") : setInputUsed(output)
+            setCurveTokenInputUsed(In)
+            setCurveTokenOutputUsed(Out)
         }
     } catch (e) {
-        console.log(e)
         setCurevSwapFunc("0.00")
-        if (!e.message.toLowerCase().includes("Cannot read properties of null".toLowerCase())) {
+        if (
+            !e.message.toLowerCase().includes("Cannot read properties of null".toLowerCase()) &&
+            !e.message.toLowerCase().includes("ConnectTimeoutError")
+        ) {
             swapType == 2
                 ? output == undefined || output == ""
                     ? setInputUsed("1")
@@ -63,6 +80,8 @@ export const getCurvePrice = async (
                 : input == undefined || input == ""
                 ? setInputUsed("1")
                 : setInputUsed(input)
+            setCurveTokenInputUsed(In)
+            setCurveTokenOutputUsed(Out)
         }
     }
 }
@@ -77,14 +96,24 @@ export const getUniswapPrice = async (
     inputDecimal,
     swapType,
     setUniSwapFunc,
-    setInputUsed
+    setInputUsed,
+    setUniswapTokenInputUsed,
+    setUniswapTokenOutputUsed
 ) => {
     setUniSwapFunc("wait..")
     const Address = "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6"
     const ABI = uniSwapABI[Address]
-    const Contract = new ethers.Contract(Address, ABI, web3Provider)
+    const In = tokenInputAddress
+    const Out = tokenOutputAddress
+    tokenInputAddress == ethAddress
+        ? (tokenInputAddress = wethAddress)
+        : (tokenInputAddress = tokenInputAddress)
+    tokenOutputAddress == ethAddress
+        ? (tokenOutputAddress = wethAddress)
+        : (tokenOutputAddress = tokenOutputAddress)
     let Amount
     try {
+        const Contract = new ethers.Contract(Address, ABI, web3Provider)
         if (swapType == 1) {
             input == 0 || input == undefined
                 ? (Amount = ethers.utils.parseUnits("1", inputDecimal))
@@ -101,6 +130,8 @@ export const getUniswapPrice = async (
             setUniSwapFunc(price.toString())
 
             input == undefined || input == "" ? setInputUsed("1") : setInputUsed(input)
+            setUniswapTokenInputUsed(In)
+            setUniswapTokenOutputUsed(Out)
         } else if (swapType == 2) {
             output == 0 || output == undefined
                 ? (Amount = ethers.utils.parseUnits("1", outputDecimal))
@@ -115,11 +146,16 @@ export const getUniswapPrice = async (
             const price = ethers.utils.formatUnits(result.toString(), inputDecimal)
             setUniSwapFunc(price.toString())
             output == undefined || output == "" ? setInputUsed("1") : setInputUsed(output)
+            setUniswapTokenInputUsed(In)
+            setUniswapTokenOutputUsed(Out)
         }
     } catch (error) {
         setUniSwapFunc("0.0")
-        console.log(`UNI Error ${error}`)
-        if (!error.message.toLowerCase().includes("Cannot read properties of null".toLowerCase())) {
+
+        if (
+            !error.message.toLowerCase().includes("Cannot read properties of null".toLowerCase()) &&
+            !error.message.toLowerCase().includes("ConnectTimeoutError")
+        ) {
             swapType == 2
                 ? output == undefined || output == ""
                     ? setInputUsed("1")
@@ -127,6 +163,8 @@ export const getUniswapPrice = async (
                 : input == undefined || input == ""
                 ? setInputUsed("1")
                 : setInputUsed(input)
+            setUniswapTokenInputUsed(In)
+            setUniswapTokenOutputUsed(Out)
         }
     }
 }
@@ -141,14 +179,26 @@ export const getSushiSwapPrice = async (
     inputDecimal,
     swapType,
     setSushiSwapPriceFunc,
-    setInputUsed
+    setInputUsed,
+    setSushiswapTokenInputUsed,
+    setSushiswapTokenOutputUsed
 ) => {
     setSushiSwapPriceFunc("wait..")
+
+    const routerAddress = "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"
+    const routerABI = SushiSwapABI[routerAddress]
+
+    let Amount
+    const In = tokenInputAddress
+    const Out = tokenOutputAddress
+    tokenInputAddress == ethAddress
+        ? (tokenInputAddress = wethAddress)
+        : (tokenInputAddress = tokenInputAddress)
+    tokenOutputAddress == ethAddress
+        ? (tokenOutputAddress = wethAddress)
+        : (tokenOutputAddress = tokenOutputAddress)
     try {
-        const routerAddress = "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"
-        const routerABI = SushiSwapABI[routerAddress]
         const routerContract = new ethers.Contract(routerAddress, routerABI, web3Provider)
-        let Amount
         if (swapType == 1) {
             input == 0 || input == undefined
                 ? (Amount = ethers.utils.parseUnits("1", inputDecimal))
@@ -160,6 +210,8 @@ export const getSushiSwapPrice = async (
             const price = ethers.utils.formatUnits(result[1].toString(), outputDecimal)
             setSushiSwapPriceFunc(price)
             input == undefined || input == "" ? setInputUsed("1") : setInputUsed(input)
+            setSushiswapTokenInputUsed(In)
+            setSushiswapTokenOutputUsed(Out)
         } else if (swapType == 2) {
             output == 0 || output == undefined
                 ? (Amount = ethers.utils.parseUnits("1", outputDecimal))
@@ -171,11 +223,16 @@ export const getSushiSwapPrice = async (
             const price = ethers.utils.formatUnits(result[0].toString(), inputDecimal)
             setSushiSwapPriceFunc(price)
             output == undefined || output == "" ? setInputUsed("1") : setInputUsed(output)
+            setSushiswapTokenInputUsed(In)
+            setSushiswapTokenOutputUsed(Out)
         }
     } catch (error) {
         setSushiSwapPriceFunc("0.0")
-        console.log(`sushi Error ${error.message}`)
-        if (!error.message.toLowerCase().includes("Cannot read properties of null".toLowerCase())) {
+
+        if (
+            !error.message.toLowerCase().includes("Cannot read properties of null".toLowerCase()) &&
+            !error.message.toLowerCase().includes("ConnectTimeoutError")
+        ) {
             swapType == 2
                 ? output == undefined || output == ""
                     ? setInputUsed("1")
@@ -183,6 +240,9 @@ export const getSushiSwapPrice = async (
                 : input == undefined || input == ""
                 ? setInputUsed("1")
                 : setInputUsed(input)
+
+            setSushiswapTokenInputUsed(In)
+            setSushiswapTokenOutputUsed(Out)
         }
     }
 }
@@ -200,10 +260,19 @@ export const getBalancerPrice = async (
     setBalancerSwaps,
     setBalancerAddresses,
     setBalancerTokenLimits,
-    setInputUsed
+    setInputUsed,
+    setBalancerTokenInputUsed,
+    setBalancerTokenOutputUsed
 ) => {
     setBalancerSwapPriceFunc("wait..")
-
+    const In = tokenInputAddress
+    const Out = tokenOutputAddress
+    tokenInputAddress == ethAddress
+        ? (tokenInputAddress = wethAddress)
+        : (tokenInputAddress = tokenInputAddress)
+    tokenOutputAddress == ethAddress
+        ? (tokenOutputAddress = wethAddress)
+        : (tokenOutputAddress = tokenOutputAddress)
     const subgraphPoolDataService = new SubgraphPoolDataService({
         subgraphUrl: "https://api.thegraph.com/subgraphs/name/balancer-labs/balancer-v2-beta",
     })
@@ -226,7 +295,7 @@ export const getBalancerPrice = async (
             subgraphPoolDataService,
             coingeckoTokenPriceService
         )
-
+        await getQuery(tokenInputAddress, tokenOutputAddress)
         await sor.fetchPools()
         const swapper = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 
@@ -261,15 +330,16 @@ export const getBalancerPrice = async (
                 setBalancerSwapPriceFunc(Math.abs(price))
                 setBalancerSwaps(swap.swaps)
                 setBalancerAddresses(swap.tokenAddresses)
-                console.log(batch_swap_function[0].toString())
+
                 input == undefined || input == "" ? setInputUsed("1") : setInputUsed(input)
+                setBalancerTokenInputUsed(In)
+                setBalancerTokenOutputUsed(Out)
                 setBalancerTokenLimits(batch_swap_function)
-                console.log(`exact input price Balancer = ${price.toString()}`)
-                console.log("balancer price gotten successfully")
             } else {
                 setBalancerSwapPriceFunc("0.00")
                 input == undefined || input == "" ? setInputUsed("1") : setInputUsed(input)
-                console.log("cant find balancer price")
+                setBalancerTokenInputUsed(In)
+                setBalancerTokenOutputUsed(Out)
             }
         } else if (swapType == 2) {
             output == 0 || output == undefined
@@ -292,19 +362,20 @@ export const getBalancerPrice = async (
 
             if (batch_swap_function.length != 0) {
                 const Asset = batch_swap_function.find((assetdellta) => assetdellta > 0)
-                console.log(batch_swap_function[0].toString())
+
                 const price = ethers.utils.formatUnits(Asset.toString(), inputDecimal)
                 setBalancerSwapPriceFunc(Math.abs(price))
                 setBalancerSwaps(swap.swaps)
                 setBalancerAddresses(swap.tokenAddresses)
                 output == undefined || output == "" ? setInputUsed("1") : setInputUsed(output)
+                setBalancerTokenInputUsed(In)
+                setBalancerTokenOutputUsed(Out)
                 setBalancerTokenLimits(batch_swap_function)
-                console.log(`exact output price Balancer = ${price.toString()}`)
-                console.log("balancer price gotten successfully")
             } else {
                 setBalancerSwapPriceFunc("0.00")
                 output == undefined || output == "" ? setInputUsed("1") : setInputUsed(output)
-                console.log("cant find balancer price")
+                setBalancerTokenInputUsed(In)
+                setBalancerTokenOutputUsed(Out)
             }
         }
     } catch (error) {
@@ -312,6 +383,5 @@ export const getBalancerPrice = async (
         setBalancerSwaps([])
         setBalancerAddresses([])
         setBalancerTokenLimits([])
-        console.log(error)
     }
 }

@@ -1,13 +1,10 @@
-import { AlphaRouter } from "@uniswap/smart-order-router"
-import { Token, CurrencyAmount, TradeType, Percent } from "@uniswap/sdk-core"
-import { ethers, BigNumber } from "ethers"
-import JSBI from "jsbi"
+import { ethers } from "ethers"
 import ERC20ABI from "../constants/ERC20ABI.json"
-import CurveABI from "../constants/curveABIs.json"
-import SushiSwapABI from "../constants/sushiABIs.json"
-import uniSwapABI from "../constants/uniSwapABI.json"
-import vaultABI from "../constants/balancerABI.json"
+import AddressFile from "../constants/swapAddress.json"
+import ABI from "../constants/swapABI.json"
 
+const Address = AddressFile["Contract_Address"]
+const ethAddress = "0x0000000000000000000000000000000000000123"
 const handleNotification = (type, tx, dispatch, message) => {
     if (type == "error" && tx == "approval") {
         dispatch({
@@ -74,6 +71,25 @@ const approve = async (tokenInputAddress, approvee, amount, setLoadingText) => {
     }
 }
 
+const getBalances = async (tokenInputAddress, tokenOutputAddress, web3Provider, receipient) => {
+    let outputTokenContract, inputTokenContract, inputAmount, outputAmount
+    if (tokenInputAddress == ethAddress && tokenOutputAddress != ethAddress) {
+        outputTokenContract = new ethers.Contract(tokenOutputAddress, ERC20ABI, web3Provider)
+        inputAmount = await await web3Provider.getBalance(receipient)
+        outputAmount = await outputTokenContract.balanceOf(receipient)
+    } else if (tokenOutputAddress == ethAddress && tokenInputAddress != ethAddress) {
+        inputTokenContract = new ethers.Contract(tokenInputAddress, ERC20ABI, web3Provider)
+        inputAmount = await inputTokenContract.balanceOf(receipient)
+        outputAmount = await web3Provider.getBalance(receipient)
+    } else {
+        outputTokenContract = new ethers.Contract(tokenOutputAddress, ERC20ABI, web3Provider)
+        inputTokenContract = new ethers.Contract(tokenInputAddress, ERC20ABI, web3Provider)
+        inputAmount = await inputTokenContract.balanceOf(receipient)
+        outputAmount = await outputTokenContract.balanceOf(receipient)
+    }
+    return [inputAmount.toString(), outputAmount.toString()]
+}
+
 export async function swapWithUniswap(
     amountUsedForCalc,
     amountCalculated,
@@ -97,128 +113,89 @@ export async function swapWithUniswap(
         }
         const signer = web3Provider.getSigner()
         const receipient = await signer.getAddress()
-        const deadline = Math.floor(Date.now() / 1000 + 1800)
-
-        const Address = "0xE592427A0AEce92De3Edee1F18E0157C05861564"
-        const ABI = uniSwapABI[Address]
         const Contract = new ethers.Contract(Address, ABI, web3Provider)
 
-        const inputTokenContract = new ethers.Contract(tokenInputAddress, ERC20ABI, web3Provider)
-        const outputTokenContract = new ethers.Contract(tokenOutputAddress, ERC20ABI, web3Provider)
-        const inputAmount1 = await inputTokenContract.balanceOf(receipient)
-        const outputAmount1 = await outputTokenContract.balanceOf(receipient)
-        if (swapType == 1) {
-            const given = Number(amountUsedForCalc).toFixed(6)
-            const givenAmount = ethers.utils.parseUnits(given.toString(), inputDecimal)
-            const calculated = Number(amountCalculated).toFixed(6)
-            const calculatedAmount = ethers.utils.parseUnits(calculated.toString(), outputDecimal)
-            const minOutput = calculatedAmount.mul(BigNumber.from(100).sub(slippage)).div(100)
+        const givenDecimal = swapType == 1 ? inputDecimal : outputDecimal
+        const calculatedDecimal = swapType == 1 ? outputDecimal : inputDecimal
+        const givenAmount = ethers.utils.parseUnits(
+            Number(amountUsedForCalc).toFixed(6).toString(),
+            givenDecimal
+        )
+        const calculatedAmount = ethers.utils.parseUnits(
+            Number(amountCalculated).toFixed(6).toString(),
+            calculatedDecimal
+        )
+        let Input, Output, inputAmount1
+        swapType == 1 ? (Input = givenAmount) : (Input = calculatedAmount)
+        swapType == 1 ? (Output = calculatedAmount) : (Output = givenAmount)
+        const balances1 = await getBalances(
+            tokenInputAddress,
+            tokenOutputAddress,
+            web3Provider,
+            receipient
+        )
 
-            if (Number(givenAmount) > Number(inputAmount1)) {
-                handleNotification("error", "insufficient fund", dispatch)
-                throw "Insufficient fund"
-            }
-
+        const approvalAmount = await Contract.approvalAmountRequired(Input, swapType, slippage)
+        if (Number(approvalAmount) > Number(balances1[0])) {
+            handleNotification("error", "insufficient fund", dispatch)
+            throw "Insufficient fund"
+        }
+        if (tokenInputAddress != ethAddress) {
             try {
-                await approve(tokenInputAddress, Address, givenAmount, setUniSwapTxLoadingText)
+                await approve(tokenInputAddress, Address, approvalAmount, setUniSwapTxLoadingText)
             } catch (e) {
                 handleNotification("error", "approval", dispatch, e.message)
                 setUniSwapTxLoading(false)
                 console.log(e)
                 return
-            }
-
-            const params = {
-                tokenIn: tokenInputAddress,
-                tokenOut: tokenOutputAddress,
-                fee: 3000,
-                recipient: receipient,
-                deadline: deadline,
-                amountIn: givenAmount,
-                amountOutMinimum: minOutput,
-                sqrtPriceLimitX96: 0,
-            }
-
-            try {
-                setUniSwapTxLoadingText(`Sign swap Transaction`)
-                const tx = await Contract.connect(signer).exactInputSingle(params, {
-                    gasLimit: 30000000,
-                })
-                setUniSwapTxLoadingText(`processing...`)
-                await tx.wait()
-
-                setUniSwapTxLoading(false)
-                handleNotification("success", "swap", dispatch)
-            } catch (e) {
-                handleNotification("error", "swap", dispatch, e.message)
-                setUniSwapTxLoading(false)
-                console.log(e)
-            }
-        } else if (swapType == 2) {
-            const given = Number(amountUsedForCalc).toFixed(6)
-            const givenAmount = ethers.utils.parseUnits(given.toString(), outputDecimal)
-            const calculated = Number(amountCalculated).toFixed(6)
-            const calculatedAmount = ethers.utils.parseUnits(calculated.toString(), inputDecimal)
-            const maxInput = calculatedAmount.mul(BigNumber.from(100).add(slippage)).div(100)
-
-            if (Number(calculatedAmount) > Number(inputAmount1)) {
-                handleNotification("error", "insufficient fund", dispatch)
-                throw "Insufficient fund"
-            }
-
-            try {
-                await approve(tokenInputAddress, Address, maxInput, setUniSwapTxLoadingText)
-            } catch (e) {
-                handleNotification("error", "approval", dispatch, e.message)
-                setUniSwapTxLoading(false)
-                console.log(e)
-                return
-            }
-
-            const params = {
-                tokenIn: tokenInputAddress,
-                tokenOut: tokenOutputAddress,
-                fee: 3000,
-                recipient: receipient,
-                deadline: deadline,
-                amountOut: givenAmount,
-                amountInMaximum: maxInput,
-                sqrtPriceLimitX96: 0,
-            }
-
-            try {
-                setUniSwapTxLoadingText(`Sign swap Transaction`)
-                const tx = await Contract.connect(signer).exactOutputSingle(params, {
-                    gasLimit: 30000000,
-                })
-                setUniSwapTxLoadingText(`processing...`)
-                await tx.wait()
-
-                setUniSwapTxLoading(false)
-                handleNotification("success", "swap", dispatch)
-            } catch (e) {
-                handleNotification("error", "swap", dispatch, e.message)
-                setUniSwapTxLoading(false)
-                console.log(e)
             }
         }
 
-        const inputAmount2 = await inputTokenContract.balanceOf(receipient)
-        const outputAmount2 = await outputTokenContract.balanceOf(receipient)
-        const amountReceived = outputAmount2 - outputAmount1
-        const amountSent = inputAmount1 - inputAmount2
+        const Value = tokenInputAddress == ethAddress ? approvalAmount : 0
+        try {
+            setUniSwapTxLoadingText("sign swap transaction")
+            const Uniswap = await Contract.connect(signer).Uniswap(
+                tokenInputAddress,
+                tokenOutputAddress,
+                3000,
+                Input,
+                Output,
+                swapType,
+                slippage,
+                { value: Value }
+            )
+            await Uniswap.wait()
+            setUniSwapTxLoading(false)
+            handleNotification("success", "swap", dispatch)
+        } catch (e) {
+            setUniSwapTxLoading(false)
+            handleNotification("error", "swap", dispatch, e.message)
+        }
+
+        const balances2 = await getBalances(
+            tokenInputAddress,
+            tokenOutputAddress,
+            web3Provider,
+            receipient
+        )
+        const amountReceived = balances2[1] - balances1[1]
+        const amountSent = balances1[0] - balances2[0]
         console.log(`amount recieved is ${amountReceived}`)
         console.log(`amount sent is ${amountSent}`)
+        const amountUsed = await Contract.amountUsede()
+        console.log(`amount Used ${amountUsed.toString()}`)
+        console.log(`approval amount ${approvalAmount.toString()}`)
+        console.log(swapType)
     } catch (e) {
         setUniSwapTxLoading(false)
-        console.log(e)
+        console.log(e.message)
     }
 }
 
 export const swapWithCurve = async (
     inputAmount,
     inputDecimal,
-    amountOut,
+    outputAmount,
     outputDecimal,
     tokenInputAddress,
     tokenOutputAddress,
@@ -236,24 +213,6 @@ export const swapWithCurve = async (
             handleNotification("error", "enableWeb3", dispatch)
             throw "Not connected to a wallet"
         }
-        const signer = web3Provider.getSigner()
-        const receipient = await signer.getAddress()
-
-        const Address = "0x99a58482BD75cbab83b27EC03CA68fF489b5788f"
-        const ABI = CurveABI["Vyper"]
-        const Contract = new ethers.Contract(Address, ABI, web3Provider)
-
-        const input = Number(inputAmount).toFixed(6)
-        const Amount1 = ethers.utils.parseUnits(input.toString(), inputDecimal)
-
-        const output = Number(amountOut).toFixed(6)
-        const AmountOut = ethers.utils.parseUnits(output.toString(), outputDecimal)
-
-        const percentageSlippage = BigNumber.from(5)
-        console.log(`expected Output = ${slippage.toString()}`)
-        const expectedOutput = AmountOut.mul(BigNumber.from(100).sub(slippage)).div(100)
-        // const expectedOutput = AmountOut.sub(percentageSlippage.mul(AmountOut.div(100)))
-        console.log(`expected Output = ${AmountOut.toString()}`)
         if (swapType == 2) {
             dispatch({
                 type: "error",
@@ -264,53 +223,81 @@ export const swapWithCurve = async (
 
             throw "Exact Output not Supported by curve"
         }
-
-        const inputTokenContract = new ethers.Contract(tokenInputAddress, ERC20ABI, web3Provider)
-        const amount1Balance = await inputTokenContract.balanceOf(receipient)
-
-        if (Number(Amount1) > Number(amount1Balance)) {
+        const signer = web3Provider.getSigner()
+        const receipient = await signer.getAddress()
+        const balances1 = await getBalances(
+            tokenInputAddress,
+            tokenOutputAddress,
+            web3Provider,
+            receipient
+        )
+        const amountIn = ethers.utils.parseUnits(
+            Number(inputAmount).toFixed(6).toString(),
+            inputDecimal
+        )
+        const amountOut = ethers.utils.parseUnits(
+            Number(outputAmount).toFixed(6).toString(),
+            outputDecimal
+        )
+        const Contract = new ethers.Contract(Address, ABI, web3Provider)
+        const approvalAmount = await Contract.approvalAmountRequired(amountIn, swapType, slippage)
+        if (Number(balances1[0]) < Number(approvalAmount)) {
             handleNotification("error", "insufficient fund", dispatch)
             throw "Insufficient fund"
         }
 
-        try {
-            await approve(tokenInputAddress, Address, Amount1, setCurveTxLoadingText)
-        } catch (e) {
-            handleNotification("error", "approval", dispatch, e.message)
-            setCurveTxLoading(false)
-            console.log(e)
-            return
+        if (tokenInputAddress != ethAddress) {
+            try {
+                await approve(tokenInputAddress, Address, approvalAmount, setCurveTxLoadingText)
+            } catch (e) {
+                handleNotification("error", "approval", dispatch, e.message)
+                setCurveTxLoading(false)
+                console.log(e)
+                return
+            }
         }
+        const Value = tokenInputAddress == ethAddress ? approvalAmount : 0
         try {
             setCurveTxLoadingText("sign swap transaction")
-            const tx = await Contract.connect(signer).exchange_with_best_rate(
+            const curve = await Contract.connect(signer).swapWithCurve(
                 tokenInputAddress,
                 tokenOutputAddress,
-                Amount1,
-                0,
-                {
-                    gasLimit: 30000000,
-                    gasPrice: 47189990884,
-                }
+                amountIn,
+                amountOut,
+                slippage,
+                { value: Value }
             )
             setCurveTxLoadingText("processing...")
-
-            await tx.wait()
+            await curve.wait()
+            setCurveTxLoading(false)
             handleNotification("success", "swap", dispatch)
-            setCurveTxLoading(false)
         } catch (e) {
-            handleNotification("error", "swap", dispatch, e.message)
             setCurveTxLoading(false)
-            console.log(e)
+
+            handleNotification("error", "swap", dispatch, e.message)
         }
+
+        const balances2 = await getBalances(
+            tokenInputAddress,
+            tokenOutputAddress,
+            web3Provider,
+            receipient
+        )
+
+        const amountReceived = balances2[1] - balances1[1]
+        const amountSent = balances1[0] - balances2[0]
+        console.log(`amount recieved is ${amountReceived}`)
+        console.log(`amount sent is ${amountSent}`)
+        const amountUsed = await Contract.amountUsede()
+        console.log(`amount Used ${amountUsed.toString()}`)
+        console.log(`approval amount ${approvalAmount.toString()}`)
+        console.log(swapType)
     } catch (e) {
         setCurveTxLoading(false)
         console.log(e)
     }
 }
 export const swapWithSushi = async (
-    token1,
-    token2,
     amountUsedForCalc,
     amountCalculated,
     inputDecimal,
@@ -332,196 +319,79 @@ export const swapWithSushi = async (
             throw "Not connected to a wallet"
         }
         const signer = web3Provider.getSigner()
-
-        const Address = "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"
-        const ABI = SushiSwapABI[Address]
-        const Contract = new ethers.Contract(Address, ABI, web3Provider)
         const receipient = await signer.getAddress()
-        const deadline = Math.floor(Date.now() / 1000 + 1800)
+        const Contract = new ethers.Contract(Address, ABI, web3Provider)
 
-        const inputTokenContract = new ethers.Contract(tokenInputAddress, ERC20ABI, web3Provider)
-        const outputTokenContract = new ethers.Contract(tokenOutputAddress, ERC20ABI, web3Provider)
-        let inputAmount1
-        token1 == "ETH"
-            ? (inputAmount1 = await web3Provider.getBalance(receipient))
-            : (inputAmount1 = await inputTokenContract.balanceOf(receipient))
-        const outputAmount1 = await outputTokenContract.balanceOf(receipient)
-        let tx
-        if (swapType == 1) {
-            const given = Number(amountUsedForCalc).toFixed(6)
-            const givenAmount = ethers.utils.parseUnits(given.toString(), inputDecimal)
-            const calculated = Number(amountCalculated).toFixed(6)
-            const calculatedAmount = ethers.utils.parseUnits(calculated.toString(), outputDecimal)
-            const minOutput = calculatedAmount.mul(BigNumber.from(100).sub(slippage)).div(100)
-
-            if (Number(givenAmount) > Number(inputAmount1.toString())) {
-                handleNotification("error", "insufficient fund", dispatch)
-                throw "Insufficient fund"
-            }
-
-            try {
-                if (token1 == "ETH") {
-                    setSushiTxLoadingText("sign swap transaction")
-                    tx = await Contract.connect(signer).swapExactETHForTokens(
-                        minOutput,
-                        [tokenInputAddress, tokenOutputAddress],
-                        receipient,
-                        deadline,
-                        {
-                            value: givenAmount,
-                            gasPrice: 91710994765,
-                            gasLimit: 500000,
-                        }
-                    )
-                    setSushiTxLoadingText("processing...")
-                } else if (token2 == "ETH") {
-                    try {
-                        await approve(
-                            tokenInputAddress,
-                            Address,
-                            givenAmount,
-                            setSushiTxLoadingText
-                        )
-                    } catch (e) {
-                        handleNotification("error", "approval", dispatch, e.message)
-                        setSushiTxLoading(false)
-                        console.log(e)
-                        return
-                    }
-                    setSushiTxLoadingText("sign swap transaction")
-                    tx = await Contract.connect(signer).swapExactTokensForETH(
-                        givenAmount,
-                        minOutput,
-                        [tokenInputAddress, tokenOutputAddress],
-                        receipient,
-                        deadline,
-                        {
-                            gasPrice: 11471623582,
-                            gasLimit: 500000,
-                        }
-                    )
-                    setSushiTxLoadingText("processing...")
-                } else {
-                    try {
-                        await approve(
-                            tokenInputAddress,
-                            Address,
-                            givenAmount,
-                            setSushiTxLoadingText
-                        )
-                    } catch (e) {
-                        handleNotification("error", "approval", dispatch, e.message)
-                        setSushiTxLoading(false)
-                        console.log(e)
-                        return
-                    }
-                    setSushiTxLoadingText("sign swap transaction")
-                    tx = await Contract.connect(signer).swapExactTokensForTokens(
-                        givenAmount,
-                        minOutput,
-                        [tokenInputAddress, tokenOutputAddress],
-                        receipient,
-                        deadline,
-                        {
-                            gasPrice: 11471623582,
-                            gasLimit: 500000,
-                        }
-                    )
-                }
-            } catch (e) {
-                handleNotification("error", "approval", dispatch, e.message)
-                setSushiTxLoading(false)
-                console.log(e)
-            }
-        } else if (swapType == 2) {
-            const given = Number(amountUsedForCalc).toFixed(6)
-            const givenAmount = ethers.utils.parseUnits(given.toString(), outputDecimal)
-            const calculated = Number(amountCalculated).toFixed(6)
-            const calculatedAmount = ethers.utils.parseUnits(calculated.toString(), inputDecimal)
-            const maxInput = calculatedAmount.mul(BigNumber.from(100).add(slippage)).div(100)
-
-            if (Number(calculatedAmount) > Number(inputAmount1.toString())) {
-                handleNotification("error", "insufficient fund", dispatch)
-                throw "Insufficient fund"
-            }
-
-            try {
-                if (token1 == "ETH") {
-                    setSushiTxLoadingText("sign swap transaction")
-                    tx = await Contract.connect(signer).swapETHForExactTokens(
-                        givenAmount,
-                        [tokenInputAddress, tokenOutputAddress],
-                        receipient,
-                        deadline,
-                        {
-                            value: maxInput,
-                            gasPrice: 23099912615,
-                            gasLimit: 500000,
-                        }
-                    )
-                    setSushiTxLoadingText("processing...")
-                } else if (token2 == "ETH") {
-                    try {
-                        await approve(tokenInputAddress, Address, maxInput, setSushiTxLoadingText)
-                    } catch (e) {
-                        handleNotification("error", "approval", dispatch, e.message)
-                        setSushiTxLoading(false)
-                        console.log(e)
-                        return
-                    }
-                    setSushiTxLoadingText("sign swap transaction")
-                    tx = await Contract.connect(signer).swapTokensForExactETH(
-                        givenAmount,
-                        maxInput,
-                        [tokenInputAddress, tokenOutputAddress],
-                        receipient,
-                        deadline,
-                        {
-                            gasPrice: 11471623582,
-                            gasLimit: 500000,
-                        }
-                    )
-                    setSushiTxLoadingText("processing...")
-                } else {
-                    try {
-                        await approve(tokenInputAddress, Address, maxInput, setSushiTxLoadingText)
-                    } catch (e) {
-                        handleNotification("error", "approval", dispatch, e.message)
-                        setSushiTxLoading(false)
-                        console.log(e)
-                        return
-                    }
-                    setSushiTxLoadingText("sign swap transaction")
-                    tx = await Contract.connect(signer).swapTokensForExactTokens(
-                        givenAmount,
-                        maxInput,
-                        [tokenInputAddress, tokenOutputAddress],
-                        receipient,
-                        deadline,
-                        {
-                            gasPrice: 11471623582,
-                            gasLimit: 500000,
-                        }
-                    )
-                }
-            } catch (e) {
-                handleNotification("error", "approval", dispatch, e.message)
-                setSushiTxLoading(false)
-                console.log(e)
-            }
+        const givenDecimal = swapType == 1 ? inputDecimal : outputDecimal
+        const calculatedDecimal = swapType == 1 ? outputDecimal : inputDecimal
+        const givenAmount = ethers.utils.parseUnits(
+            Number(amountUsedForCalc).toFixed(6).toString(),
+            givenDecimal
+        )
+        const calculatedAmount = ethers.utils.parseUnits(
+            Number(amountCalculated).toFixed(6).toString(),
+            calculatedDecimal
+        )
+        let Input, Output
+        swapType == 1 ? (Input = givenAmount) : (Input = calculatedAmount)
+        swapType == 1 ? (Output = calculatedAmount) : (Output = givenAmount)
+        const approvalAmount = await Contract.approvalAmountRequired(Input, swapType, slippage)
+        const balances1 = await getBalances(
+            tokenInputAddress,
+            tokenOutputAddress,
+            web3Provider,
+            receipient
+        )
+        if (Number(approvalAmount) > Number(balances1[0])) {
+            handleNotification("error", "insufficient fund", dispatch)
+            throw "Insufficient fund"
         }
 
-        setSushiTxLoadingText("processing...")
-        await tx.wait(1)
+        if (tokenInputAddress != ethAddress) {
+            try {
+                await approve(tokenInputAddress, Address, approvalAmount, setSushiTxLoadingText)
+            } catch (e) {
+                handleNotification("error", "approval", dispatch, e.message)
+                setSushiTxLoading(false)
+                console.log(e)
+                return
+            }
+        }
+        const Value = tokenInputAddress == ethAddress ? approvalAmount : 0
+        try {
+            setSushiTxLoadingText("sign swap transaction")
+            const sushiSwap = await Contract.connect(signer).swapWithSushi(
+                tokenInputAddress,
+                tokenOutputAddress,
+                Input,
+                Output,
+                slippage,
+                swapType,
+                { value: Value }
+            )
+            setSushiTxLoadingText("processing...")
+            await sushiSwap.wait(1)
+            setSushiTxLoading(false)
+            handleNotification("success", "swap", dispatch)
+        } catch (e) {
+            setSushiTxLoading(false)
+            handleNotification("error", "swap", dispatch, e.message)
+        }
 
-        handleNotification("success", "swap", dispatch)
-        setSushiTxLoading(false)
-        const inputAmount2 = await inputTokenContract.balanceOf(receipient)
-        const outputAmount2 = await outputTokenContract.balanceOf(receipient)
-        const amountReceived = outputAmount2 - outputAmount1
-        const amountSent = inputAmount1 - inputAmount2
+        const balances2 = await getBalances(
+            tokenInputAddress,
+            tokenOutputAddress,
+            web3Provider,
+            receipient
+        )
+        const amountReceived = balances2[1] - balances1[1]
+        const amountSent = balances1[0] - balances2[0]
         console.log(`amount recieved is ${amountReceived}`)
         console.log(`amount sent is ${amountSent}`)
+        const amountUsed = await Contract.amountUsede()
+        console.log(`amount Used ${amountUsed.toString()}`)
+        console.log(`approval amount ${approvalAmount.toString()}`)
+        console.log(swapType)
     } catch (e) {
         setSushiTxLoading(false)
         console.log(e)
@@ -529,6 +399,8 @@ export const swapWithSushi = async (
 }
 
 export const swapWithBalancer = async (
+    tokenInputAddress,
+    tokenOutputAddress,
     swaps,
     checksum_tokens,
     tokenLimits,
@@ -547,113 +419,70 @@ export const swapWithBalancer = async (
             throw "Not connected to a wallet"
         }
         const signer = web3Provider.getSigner()
-        const swapper = await signer.getAddress()
-        const fund_struct = {
-            sender: swapper,
-            fromInternalBalance: false,
-            recipient: swapper,
-            toInternalBalance: false,
-        }
-        const deadline = Math.floor(Date.now() / 1000 + 1800)
-        const vaultAddress = "0xBA12222222228d8Ba445958a75a0704d566BF2C8"
-        const vaultContract = new ethers.Contract(vaultAddress, vaultABI, web3Provider)
-        const limits = [...tokenLimits]
-        const indexOfReturnedValue = limits.findIndex((limit) => limit < 0)
-
-        const inputTokenContract = new ethers.Contract(checksum_tokens[0], ERC20ABI, web3Provider)
-        const outputTokenContract = new ethers.Contract(
-            checksum_tokens[indexOfReturnedValue],
-            ERC20ABI,
-            web3Provider
+        const receipient = await signer.getAddress()
+        const balances1 = await getBalances(
+            tokenInputAddress,
+            tokenOutputAddress,
+            web3Provider,
+            receipient
         )
-        const inputAmount1 = await inputTokenContract.balanceOf(swapper)
-        const outputAmount1 = await outputTokenContract.balanceOf(swapper)
 
-        if (swapType == 1) {
-            const amountOut = limits[indexOfReturnedValue]
-                .mul(BigNumber.from(100).sub(slippage))
-                .div(100)
-            limits[indexOfReturnedValue] = amountOut
-
-            if (Number(tokenLimits[0]) > Number(inputAmount1.toString())) {
-                handleNotification("error", "insufficient fund", dispatch)
-                throw "Insufficient fund"
-            }
-
+        const Contract = new ethers.Contract(Address, ABI, web3Provider)
+        const approvalAmount = await Contract.approvalAmountRequired(
+            tokenLimits[0],
+            swapType,
+            slippage
+        )
+        if (Number(approvalAmount) > Number(balances1[0])) {
+            handleNotification("error", "insufficient fund", dispatch)
+            throw "Insufficient fund"
+        }
+        if (tokenInputAddress != ethAddress) {
             try {
-                await approve(
-                    checksum_tokens[0],
-                    vaultAddress,
-                    tokenLimits[0],
-                    setBalancerTxLoadingText
-                )
+                await approve(tokenInputAddress, Address, approvalAmount, setBalancerTxLoadingText)
             } catch (e) {
                 handleNotification("error", "approval", dispatch, e.message)
                 setBalancerTxLoading(false)
                 console.log(e)
                 return
-            }
-
-            try {
-                setBalancerTxLoadingText("sign swap transaction")
-                const batch_swap_function = await vaultContract
-                    .connect(signer)
-                    .batchSwap(0, swaps, checksum_tokens, fund_struct, limits, deadline, {
-                        gasLimit: 30000000,
-                    })
-                setBalancerTxLoadingText("processing...")
-                await batch_swap_function.wait()
-
-                handleNotification("success", "swap", dispatch)
-                setBalancerTxLoading(false)
-            } catch (e) {
-                handleNotification("error", "approval", dispatch, e.message)
-                console.log(e)
-                setBalancerTxLoading(false)
-            }
-        } else if (swapType == 2) {
-            const amountIn = limits[0].mul(BigNumber.from(100).add(slippage)).div(100)
-            limits[0] = amountIn
-
-            if (Number(limits[0]) > Number(inputAmount1)) {
-                handleNotification("error", "insufficient fund", dispatch)
-                throw "Insufficient fund"
-            }
-
-            try {
-                await approve(checksum_tokens[0], vaultAddress, amountIn, setBalancerTxLoadingText)
-            } catch (e) {
-                handleNotification("error", "approval", dispatch, e.message)
-                setBalancerTxLoading(false)
-                console.log(e)
-                return
-            }
-
-            try {
-                setBalancerTxLoadingText("sign swap transaction")
-                const batch_swap_function = await vaultContract
-                    .connect(signer)
-                    .batchSwap(1, swaps, checksum_tokens, fund_struct, limits, deadline, {
-                        gasLimit: 30000000,
-                    })
-                setBalancerTxLoadingText("processing...")
-                await batch_swap_function.wait()
-
-                handleNotification("success", "swap", dispatch)
-                setBalancerTxLoading(false)
-            } catch (e) {
-                handleNotification("error", "approval", dispatch, e.message)
-                console.log(e)
-                setBalancerTxLoading(false)
             }
         }
 
-        const inputAmount2 = await inputTokenContract.balanceOf(swapper)
-        const outputAmount2 = await outputTokenContract.balanceOf(swapper)
-        const amountReceived = outputAmount2 - outputAmount1
-        const amountSent = inputAmount1 - inputAmount2
+        const Value = tokenInputAddress == ethAddress ? approvalAmount : 0
+        try {
+            setBalancerTxLoadingText("sign swap transaction")
+            const balancer = await Contract.connect(signer).swapWithBalancer(
+                tokenInputAddress,
+                tokenOutputAddress,
+                swaps,
+                checksum_tokens,
+                tokenLimits,
+                slippage,
+                swapType,
+                { value: Value }
+            )
+            setBalancerTxLoadingText("processing...")
+            await balancer.wait(1)
+            setBalancerTxLoading(false)
+            handleNotification("success", "swap", dispatch)
+        } catch (e) {
+            setBalancerTxLoading(false)
+            handleNotification("error", "swap", dispatch, e.message)
+        }
+        const balances2 = await getBalances(
+            tokenInputAddress,
+            tokenOutputAddress,
+            web3Provider,
+            receipient
+        )
+        const amountReceived = balances2[1] - balances1[1]
+        const amountSent = balances1[0] - balances2[0]
         console.log(`amount recieved is ${amountReceived}`)
         console.log(`amount sent is ${amountSent}`)
+        const amountUsed = await Contract.amountUsede()
+        console.log(`amount Used ${amountUsed.toString()}`)
+        console.log(`approval amount ${approvalAmount.toString()}`)
+        console.log(swapType)
     } catch (e) {
         setBalancerTxLoading(false)
         console.log(e.message)

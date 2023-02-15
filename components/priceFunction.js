@@ -1,8 +1,7 @@
 import { useNotification, Loading } from "@web3uikit/core"
 import { useState, useEffect } from "react"
-import { useMoralis, useWeb3Contract } from "react-moralis"
+import { useMoralis } from "react-moralis"
 import { ethers } from "ethers"
-
 import {
     getBalancerPrice,
     getCurvePrice,
@@ -15,27 +14,25 @@ import {
     swapWithSushi,
     swapWithUniswap,
 } from "../Utils/swapFunctions"
-import { addToTokenList, EditTokenList, moreThanTwo, tokenLists } from "../Utils/listOfTokens"
 import { Select } from "./select"
 import { ThePage } from "./thePage"
 import { SetSlippage } from "./setSlippage"
 import { AddToken } from "./addToken"
-import TokensLists from "./graphqlQueries"
 
 export default function PriceFunctions() {
     const { isWeb3Enabled, enableWeb3 } = useMoralis()
-    const [token1, setToken1] = useState("USDT")
-    const [token2, setToken2] = useState("ETH")
+    const [token1, setToken1] = useState("ETH")
+    const [token2, setToken2] = useState("USDT")
     const [amount1, setAmount1] = useState(1)
     const [amount2, setAmount2] = useState(0)
     const [tokenInputAddress, setTokenInputAddress] = useState(
-        "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+        "0x0000000000000000000000000000000000000123"
     )
     const [tokenOutputAddress, setTokenOutputAddress] = useState(
-        "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+        "0xdAC17F958D2ee523a2206206994597C13D831ec7"
     )
-    const [inputDecimal, setInputDecimal] = useState(6)
-    const [outputDecimal, setOutputDecimal] = useState(18)
+    const [inputDecimal, setInputDecimal] = useState(18)
+    const [outputDecimal, setOutputDecimal] = useState(6)
     const [bestRate, setBestRate] = useState()
     const [active, setActive] = useState("1")
 
@@ -54,6 +51,14 @@ export default function PriceFunctions() {
     const [curvestate, setCurveState] = useState()
     const [sushistate, setSushiState] = useState()
     const [unistate, setUniState] = useState()
+    const [uniswapTokenInputUsed, setUniswapTokenInputUsed] = useState()
+    const [uniswapTokenOutputUsed, setUniswapTokenOutputUsed] = useState()
+    const [sushiswapTokenInputUsed, setSushiswapTokenInputUsed] = useState()
+    const [sushiswapTokenOutputUsed, setSushiswapTokenOutputUsed] = useState()
+    const [curveTokenInputUsed, setCurveTokenInputUsed] = useState()
+    const [curveTokenOutputUsed, setCurveTokenOutputUsed] = useState()
+    const [balancerTokenInputUsed, setBalancerTokenInputUsed] = useState()
+    const [balancerTokenOutputUsed, setBalancerTokenOutputUsed] = useState()
     const dispatch = useNotification()
 
     const [uniSwapTxLoading, setUniSwapTxLoading] = useState(false)
@@ -72,6 +77,7 @@ export default function PriceFunctions() {
 
     const [showSlippageModal, setShowSlippageModal] = useState(false)
     const [slippage, setSlippage] = useState(5)
+    const [showAddTokenModal, setShowAddTokenModal] = useState(false)
 
     useEffect(() => {
         if (isWeb3Enabled) {
@@ -106,8 +112,6 @@ export default function PriceFunctions() {
             )
         } else if (dex == "swap with sushiswap") {
             swapWithSushi(
-                token1,
-                token2,
                 sushiswapInputUsedForPriceCalc,
                 sushiSwapPrice,
                 inputDecimal,
@@ -140,6 +144,8 @@ export default function PriceFunctions() {
             )
         } else if (dex == "swap with balancer") {
             swapWithBalancer(
+                tokenInputAddress,
+                tokenOutputAddress,
                 balancerSwaps,
                 balancerTokenAddresses,
                 balancerPriceLimits,
@@ -164,7 +170,9 @@ export default function PriceFunctions() {
             inputDecimal,
             swapType,
             setUniSwapPrice,
-            setUniswapInputUsedForPriceCalc
+            setUniswapInputUsedForPriceCalc,
+            setUniswapTokenInputUsed,
+            setUniswapTokenOutputUsed
         )
     }
 
@@ -179,7 +187,9 @@ export default function PriceFunctions() {
             inputDecimal,
             swapType,
             setSushiSwapPrice,
-            setSushiswapInputUsedForPriceCalc
+            setSushiswapInputUsedForPriceCalc,
+            setSushiswapTokenInputUsed,
+            setSushiswapTokenOutputUsed
         )
     }
 
@@ -194,7 +204,9 @@ export default function PriceFunctions() {
             inputDecimal,
             swapType,
             setCurveSwapPrice,
-            setCurveInputUsedForPriceCalc
+            setCurveInputUsedForPriceCalc,
+            setCurveTokenInputUsed,
+            setCurveTokenOutputUsed
         )
     }
 
@@ -212,18 +224,11 @@ export default function PriceFunctions() {
             setBalancerSwaps,
             setBalancerTokenAddresses,
             setBalancerTokenLimits,
-            setbalancerInputUsedForPriceCalc
+            setbalancerInputUsedForPriceCalc,
+            setBalancerTokenInputUsed,
+            setBalancerTokenOutputUsed
         )
     }
-
-    useEffect(() => {
-        if ((tokenInputAddress && tokenOutputAddress) != undefined) {
-            balancerSwapPriceGetter()
-            uniSwapPriceGetter()
-            curveSwapPriceGetter()
-            sushiSwapPriceGetter()
-        }
-    }, [tokenInputAddress, tokenOutputAddress])
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -243,10 +248,27 @@ export default function PriceFunctions() {
                 ) {
                     balancerSwapPriceGetter()
                 }
+                if (
+                    (balancerTokenInputUsed != tokenInputAddress ||
+                        balancerTokenOutputUsed != tokenOutputAddress) &&
+                    balancerPrice != "wait.."
+                ) {
+                    balancerSwapPriceGetter()
+                }
             }
         }, 1000)
         return () => clearInterval(interval)
-    }, [amount1, balancerInputUsedForPriceCalc, amount2, balancerPrice, swapType])
+    }, [
+        amount1,
+        balancerInputUsedForPriceCalc,
+        amount2,
+        balancerPrice,
+        swapType,
+        balancerTokenInputUsed,
+        balancerTokenOutputUsed,
+        tokenInputAddress,
+        tokenOutputAddress,
+    ])
 
     useEffect(() => {
         if ((tokenInputAddress && tokenOutputAddress) != undefined) {
@@ -266,10 +288,27 @@ export default function PriceFunctions() {
                 ) {
                     curveSwapPriceGetter()
                 }
+                if (
+                    (curveTokenInputUsed != tokenInputAddress ||
+                        curveTokenOutputUsed != tokenOutputAddress) &&
+                    curveSwapPrice != "wait.."
+                ) {
+                    curveSwapPriceGetter()
+                }
             }, 1000)
             return () => clearInterval(interval)
         }
-    }, [amount1, curveInputUsedForPriceCalc, amount2, curveSwapPrice, swapType])
+    }, [
+        amount1,
+        curveInputUsedForPriceCalc,
+        amount2,
+        curveSwapPrice,
+        swapType,
+        curveTokenInputUsed,
+        curveTokenOutputUsed,
+        tokenInputAddress,
+        tokenOutputAddress,
+    ])
 
     useEffect(() => {
         if ((tokenInputAddress && tokenOutputAddress) != undefined) {
@@ -289,10 +328,27 @@ export default function PriceFunctions() {
                 ) {
                     sushiSwapPriceGetter()
                 }
+                if (
+                    (sushiswapTokenInputUsed != tokenInputAddress ||
+                        sushiswapTokenOutputUsed != tokenOutputAddress) &&
+                    sushiSwapPrice != "wait.."
+                ) {
+                    sushiSwapPriceGetter()
+                }
             }, 1000)
             return () => clearInterval(interval)
         }
-    }, [amount1, sushiswapInputUsedForPriceCalc, amount2, sushiSwapPrice, swapType])
+    }, [
+        amount1,
+        sushiswapInputUsedForPriceCalc,
+        amount2,
+        sushiSwapPrice,
+        swapType,
+        sushiswapTokenInputUsed,
+        sushiswapTokenOutputUsed,
+        tokenInputAddress,
+        tokenOutputAddress,
+    ])
 
     useEffect(() => {
         if ((tokenInputAddress && tokenOutputAddress) != undefined) {
@@ -312,10 +368,28 @@ export default function PriceFunctions() {
                 ) {
                     uniSwapPriceGetter()
                 }
+
+                if (
+                    (uniswapTokenInputUsed != tokenInputAddress ||
+                        uniswapTokenOutputUsed != tokenOutputAddress) &&
+                    uniSwapPrice != "wait.."
+                ) {
+                    uniSwapPriceGetter()
+                }
             }, 1000)
             return () => clearInterval(interval)
         }
-    }, [amount1, uniswapInputUsedForPriceCalc, amount2, uniSwapPrice, swapType])
+    }, [
+        amount1,
+        uniswapInputUsedForPriceCalc,
+        amount2,
+        uniSwapPrice,
+        swapType,
+        tokenInputAddress,
+        tokenOutputAddress,
+        uniswapTokenInputUsed,
+        uniswapTokenOutputUsed,
+    ])
 
     useEffect(() => {
         const bal = balancerPrice == "wait.." ? 0 : balancerPrice
@@ -432,15 +506,6 @@ export default function PriceFunctions() {
                 swapWithBest={swapWithBest}
                 bestRate={bestRate}
             />
-
-            <button
-                className="bg-red-500 hover:bg-red-700 font-bold text-white py-1 px-2 rounded-lg mb-2"
-                onClick={async function () {
-                    console.log(ethers.utils.isAddress("0x8ba1f109551bd432803012645ac136ddd64dba"))
-                }}
-            >
-                <div className="text-sm font-semibold">X</div>
-            </button>
 
             <div className=" bg-slate-600 rounded-lg sm:w-96 w-11/12 flex flex-col items-center px-2">
                 {/** UNISWAP--------------------------------------------------------------------------------------------------------------- */}
@@ -698,6 +763,14 @@ export default function PriceFunctions() {
                         </button>
                     )}
                 </div>
+                <button
+                    className="bg-blue-500 hover:bg-blue-700 font-bold text-white py-1 px-2 rounded-lg mb-2 self-end"
+                    onClick={async function () {
+                        setShowAddTokenModal(true)
+                    }}
+                >
+                    <div className="text-sm font-semibold">Add Token</div>
+                </button>
 
                 <SetSlippage
                     showSlippageModal={showSlippageModal}
@@ -717,7 +790,11 @@ export default function PriceFunctions() {
                     setOutputDecimal={setOutputDecimal}
                 />
             </div>
-            <AddToken web3Provider={web3Provider} />
+            <AddToken
+                web3Provider={web3Provider}
+                showAddTokenModal={showAddTokenModal}
+                setShowAddTokenModal={setShowAddTokenModal}
+            />
         </div>
     )
 }
