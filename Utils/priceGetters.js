@@ -21,7 +21,8 @@ export const getCurvePrice = async (
     setCurevSwapFunc,
     setInputUsed,
     setCurveTokenInputUsed,
-    setCurveTokenOutputUsed
+    setCurveTokenOutputUsed,
+    setCurvePoolAddress
 ) => {
     setCurevSwapFunc("wait..")
     const Address = "0x99a58482BD75cbab83b27EC03CA68fF489b5788f"
@@ -31,10 +32,10 @@ export const getCurvePrice = async (
     const Contract = new ethers.Contract(Address, ABI, web3Provider)
     let Amount
     tokenInputAddress == ethAddress
-        ? (tokenInputAddress = wethAddress)
+        ? (tokenInputAddress = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE")
         : (tokenInputAddress = tokenInputAddress)
     tokenOutputAddress == ethAddress
-        ? (tokenOutputAddress = wethAddress)
+        ? (tokenOutputAddress = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE")
         : (tokenOutputAddress = tokenOutputAddress)
     try {
         if (swapType == 1) {
@@ -49,6 +50,7 @@ export const getCurvePrice = async (
             )
             const price = ethers.utils.formatUnits(result[1].toString(), outputDecimal)
             setCurevSwapFunc(price.toString())
+            setCurvePoolAddress(result[0])
             input == undefined || input == "" ? setInputUsed("1") : setInputUsed(input)
             setCurveTokenInputUsed(In)
             setCurveTokenOutputUsed(Out)
@@ -63,6 +65,7 @@ export const getCurvePrice = async (
             )
             const price = ethers.utils.formatUnits(result[1].toString(), inputDecimal)
             setCurevSwapFunc(price.toString())
+            setCurvePoolAddress(result[0])
             output == undefined || output == "" ? setInputUsed("1") : setInputUsed(output)
             setCurveTokenInputUsed(In)
             setCurveTokenOutputUsed(Out)

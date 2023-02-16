@@ -8,9 +8,7 @@
     "start": "next start",
     "lint": "next lint"
   },
-  "prisma": {
-    "seed": "node prisma/seed.js"
-  },
+ 
   "dependencies": {
     "@apollo/client": "^3.7.4",
     "@balancer-labs/sor": "^4.0.1-beta.16",

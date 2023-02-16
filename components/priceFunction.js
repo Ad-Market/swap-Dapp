@@ -36,10 +36,10 @@ export default function PriceFunctions() {
     const [bestRate, setBestRate] = useState()
     const [active, setActive] = useState("1")
 
-    const [uniSwapPrice, setUniSwapPrice] = useState()
-    const [sushiSwapPrice, setSushiSwapPrice] = useState()
-    const [curveSwapPrice, setCurveSwapPrice] = useState()
-    const [balancerPrice, setBalancerPrice] = useState()
+    const [uniSwapPrice, setUniSwapPrice] = useState("init")
+    const [sushiSwapPrice, setSushiSwapPrice] = useState("init")
+    const [curveSwapPrice, setCurveSwapPrice] = useState("init")
+    const [balancerPrice, setBalancerPrice] = useState("init")
     const [balancerSwaps, setBalancerSwaps] = useState()
     const [balancerTokenAddresses, setBalancerTokenAddresses] = useState()
     const [balancerPriceLimits, setBalancerTokenLimits] = useState([])
@@ -74,6 +74,7 @@ export default function PriceFunctions() {
     const [web3Provider, setWeb3Provider] = useState()
     const [showModal, setShowModal] = useState(false)
     const [tokenNum, setTokenNum] = useState()
+    const [curvePoolAddress, setCurvePoolAddress] = useState()
 
     const [showSlippageModal, setShowSlippageModal] = useState(false)
     const [slippage, setSlippage] = useState(5)
@@ -134,6 +135,7 @@ export default function PriceFunctions() {
                 outputDecimal,
                 tokenInputAddress,
                 tokenOutputAddress,
+                curvePoolAddress,
                 swapType,
                 isWeb3Enabled,
                 slippage,
@@ -206,7 +208,8 @@ export default function PriceFunctions() {
             setCurveSwapPrice,
             setCurveInputUsedForPriceCalc,
             setCurveTokenInputUsed,
-            setCurveTokenOutputUsed
+            setCurveTokenOutputUsed,
+            setCurvePoolAddress
         )
     }
 
@@ -413,25 +416,25 @@ export default function PriceFunctions() {
     }, [uniSwapPrice, sushiSwapPrice, curveSwapPrice, balancerPrice])
 
     useEffect(() => {
-        if (uniSwapPrice == "wait.." || uniSwapPrice <= 0) {
+        if (uniSwapPrice == "wait.." || uniSwapPrice <= 0 || uniSwapPrice == "init") {
             setUniState(true)
         } else {
             setUniState(false)
         }
 
-        if (sushiSwapPrice == "wait.." || sushiSwapPrice <= 0) {
+        if (sushiSwapPrice == "wait.." || sushiSwapPrice <= 0 || sushiSwapPrice == "init") {
             setSushiState(true)
         } else {
             setSushiState(false)
         }
 
-        if (curveSwapPrice == "wait.." || curveSwapPrice <= 0) {
+        if (curveSwapPrice == "wait.." || curveSwapPrice <= 0 || curveSwapPrice == "init") {
             setCurveState(true)
         } else {
             setCurveState(false)
         }
 
-        if (balancerPrice == "wait.." || balancerPrice <= 0) {
+        if (balancerPrice == "wait.." || balancerPrice <= 0 || balancerPrice == "init") {
             setBalState(true)
         } else {
             setBalState(false)
@@ -535,7 +538,7 @@ export default function PriceFunctions() {
                             }}
                         >
                             <div>
-                                {uniSwapPrice == "wait.." ? (
+                                {uniSwapPrice == "wait.." || uniSwapPrice == "init" ? (
                                     <p className="text-zinc-100 font-semibold text-sm">
                                         Fetching Price from Uniswap...
                                     </p>
@@ -600,7 +603,7 @@ export default function PriceFunctions() {
                                 }
                             }}
                         >
-                            {sushiSwapPrice == "wait.." ? (
+                            {sushiSwapPrice == "wait.." || sushiSwapPrice == "init" ? (
                                 <p className="text-zinc-100 font-semibold text-sm">
                                     Fetching Price from SushiSwap...
                                 </p>
@@ -665,7 +668,7 @@ export default function PriceFunctions() {
                             }}
                         >
                             <div>
-                                {curveSwapPrice == "wait.." ? (
+                                {curveSwapPrice == "wait.." || curveSwapPrice == "init" ? (
                                     <p className="text-zinc-100 font-semibold text-sm">
                                         Fetching Price from Curve...
                                     </p>
@@ -726,7 +729,7 @@ export default function PriceFunctions() {
                             }}
                         >
                             <div>
-                                {balancerPrice == "wait.." ? (
+                                {balancerPrice == "wait.." || balancerPrice == "init" ? (
                                     <p className="text-zinc-100 font-semibold text-sm">
                                         Fetching Price from Balancer...
                                     </p>
@@ -767,6 +770,7 @@ export default function PriceFunctions() {
                     className="bg-blue-500 hover:bg-blue-700 font-bold text-white py-1 px-2 rounded-lg mb-2 self-end"
                     onClick={async function () {
                         setShowAddTokenModal(true)
+                        console.log(curvePoolAddress)
                     }}
                 >
                     <div className="text-sm font-semibold">Add Token</div>

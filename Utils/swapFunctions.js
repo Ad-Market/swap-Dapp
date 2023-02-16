@@ -182,10 +182,6 @@ export async function swapWithUniswap(
         const amountSent = balances1[0] - balances2[0]
         console.log(`amount recieved is ${amountReceived}`)
         console.log(`amount sent is ${amountSent}`)
-        const amountUsed = await Contract.amountUsede()
-        console.log(`amount Used ${amountUsed.toString()}`)
-        console.log(`approval amount ${approvalAmount.toString()}`)
-        console.log(swapType)
     } catch (e) {
         setUniSwapTxLoading(false)
         console.log(e.message)
@@ -199,6 +195,7 @@ export const swapWithCurve = async (
     outputDecimal,
     tokenInputAddress,
     tokenOutputAddress,
+    poolAddress,
     swapType,
     isWeb3Enabled,
     slippage,
@@ -262,6 +259,7 @@ export const swapWithCurve = async (
             const curve = await Contract.connect(signer).swapWithCurve(
                 tokenInputAddress,
                 tokenOutputAddress,
+                poolAddress,
                 amountIn,
                 amountOut,
                 slippage,
@@ -288,10 +286,6 @@ export const swapWithCurve = async (
         const amountSent = balances1[0] - balances2[0]
         console.log(`amount recieved is ${amountReceived}`)
         console.log(`amount sent is ${amountSent}`)
-        const amountUsed = await Contract.amountUsede()
-        console.log(`amount Used ${amountUsed.toString()}`)
-        console.log(`approval amount ${approvalAmount.toString()}`)
-        console.log(swapType)
     } catch (e) {
         setCurveTxLoading(false)
         console.log(e)
@@ -388,10 +382,6 @@ export const swapWithSushi = async (
         const amountSent = balances1[0] - balances2[0]
         console.log(`amount recieved is ${amountReceived}`)
         console.log(`amount sent is ${amountSent}`)
-        const amountUsed = await Contract.amountUsede()
-        console.log(`amount Used ${amountUsed.toString()}`)
-        console.log(`approval amount ${approvalAmount.toString()}`)
-        console.log(swapType)
     } catch (e) {
         setSushiTxLoading(false)
         console.log(e)
@@ -479,10 +469,6 @@ export const swapWithBalancer = async (
         const amountSent = balances1[0] - balances2[0]
         console.log(`amount recieved is ${amountReceived}`)
         console.log(`amount sent is ${amountSent}`)
-        const amountUsed = await Contract.amountUsede()
-        console.log(`amount Used ${amountUsed.toString()}`)
-        console.log(`approval amount ${approvalAmount.toString()}`)
-        console.log(swapType)
     } catch (e) {
         setBalancerTxLoading(false)
         console.log(e.message)
